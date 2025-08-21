@@ -1,2 +1,2 @@
 # fileDump
-![Screenshot 1](screenshot1)
+![Screenshot 1](screenshot1.png)
