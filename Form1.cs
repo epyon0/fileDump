@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
@@ -50,7 +51,31 @@ namespace fileDump
                 {
                     currNode = treeView1.Nodes.Add(drive.Name);
                     currNode.ImageIndex = 0; // disk.png
-                    currNode.ToolTipText = $"[{drive.VolumeLabel}] {(float)(drive.TotalFreeSpace - drive.AvailableFreeSpace) / (float)drive.TotalFreeSpace}% Used [{drive.DriveFormat}] [{drive.DriveType}]";
+                    string driveSize = "0 B";
+                    double tmpLong = drive.TotalSize;
+
+                    if (drive.TotalSize < Math.Pow(1024, 1))
+                    {
+                        driveSize = $"{drive.TotalSize / Math.Pow(1024, 0):0.##} B";
+                    }
+                    else if (drive.TotalSize < Math.Pow(1024, 2))
+                    {
+                        driveSize = $"{drive.TotalSize / Math.Pow(1024, 1):0.##} KB";
+                    }
+                    else if (drive.TotalSize < Math.Pow(1024, 3))
+                    {
+                        driveSize = $"{drive.TotalSize / Math.Pow(1024, 2):0.##} MB";
+                    }
+                    else if (drive.TotalSize < Math.Pow(1024, 4))
+                    {
+                        driveSize = $"{drive.TotalSize / Math.Pow(1024, 3):0.##} GB";
+                    }
+                    else if (drive.TotalSize < Math.Pow(1024, 5))
+                    {
+                        driveSize = $"{drive.TotalSize / Math.Pow(1024, 4):0.##} TB";
+                    }
+
+                    currNode.ToolTipText = $"[{drive.VolumeLabel}] [{drive.DriveFormat}] [{drive.DriveType}] {driveSize}";
                 }
             }
             treeView1.SelectedNode = treeView1.Nodes[0];
