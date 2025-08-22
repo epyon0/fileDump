@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Text;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -16,6 +18,9 @@ namespace fileDump
 {
     public partial class Form1 : Form
     {
+        public List<byte> data = new List<byte>();
+        private readonly BackgroundWorker worker = new BackgroundWorker();
+        public TreeNode workingNode;
 
         public Form1()
         {
@@ -40,6 +45,7 @@ namespace fileDump
             treeView1.ImageList = imageList;
 
             toolStripStatusLabel1.Text = "Gathering Drives";
+            statusStrip1.Update();
             DriveInfo[] allDrives = DriveInfo.GetDrives();
 
             TreeNode currNode = null;
@@ -47,6 +53,7 @@ namespace fileDump
             foreach (DriveInfo drive in allDrives)
             {
                 toolStripStatusLabel1.Text = $"Drive [{drive.Name}], Type: {drive.DriveType}";
+                statusStrip1.Update();
                 if (drive.IsReady)
                 {
                     currNode = treeView1.Nodes.Add(drive.Name);
@@ -80,6 +87,7 @@ namespace fileDump
             }
             treeView1.SelectedNode = treeView1.Nodes[0];
             toolStripStatusLabel1.Text = "Finished Gathering Drives";
+            statusStrip1.Update();
         }
 
         private void treeView1_AfterSelect(object sender, TreeViewEventArgs e)
@@ -104,7 +112,8 @@ namespace fileDump
                         try
                         {
                             TreeNode newNode = node.Nodes.Add(directory.FullName, directory.Name, 1, 1);
-
+                            toolStripStatusLabel1.Text = $"Adding Directory: {directory.Name}";
+                            statusStrip1.Update();
                         }
                         catch
                         {
@@ -119,6 +128,8 @@ namespace fileDump
                         try
                         {
                             node.Nodes.Add(file.FullName, file.Name, 2, 2);
+                            toolStripStatusLabel1.Text = $"Adding File: {file.Name}";
+                            statusStrip1.Update();
                         }
                         catch
                         {
@@ -134,27 +145,76 @@ namespace fileDump
 
         private void treeView1_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
+            if (worker.IsBusy)
+            {
+                worker.CancelAsync();
+            }
+
             toolStripStatusLabel1.Text = $"{File.GetAttributes(e.Node.FullPath).ToString()}";
+            statusStrip1.Update();
             if ((File.GetAttributes(e.Node.FullPath) & FileAttributes.Directory) == FileAttributes.Directory)
             {
                 enumerateDrive(e.Node);
             }
             else 
             {
-                // do hex dump
-                using (FileStream fs = new FileStream(e.Node.FullPath, FileMode.Open, FileAccess.Read))
+                textBox1.Clear();
+                textBox1.Text = $"Loading File: {e.Node.FullPath} ...";
+                workingNode = e.Node;
+                worker.WorkerReportsProgress = true;
+                worker.WorkerSupportsCancellation = true;
+                worker.DoWork += workerReadFile;
+                worker.ProgressChanged += workerProgressChanged;
+                worker.RunWorkerCompleted += workerCompleted;
+                if (!worker.IsBusy)
                 {
-                    toolStripStatusLabel1.Text = $"{fs.Name} ({File.GetAttributes(e.Node.FullPath).ToString()}) [{fs.Length} Bytes]";
+                    toolStripStatusLabel1.Text = $"File: {e.Node.FullPath}";
+                    statusStrip1.Update();
+                    worker.RunWorkerAsync(e.Node);
+                }
+            }
+        }
+        private void workerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            textBox1.Clear();
+            textBox1.Text = (string)e.Result;
+        }
+        private void workerReadFile(object sender, DoWorkEventArgs e)
+        {
+            TreeNode tmpNode = workingNode;
+            string tmpText = "";
+
+            try
+            {
+                using (FileStream fs = new FileStream(tmpNode.FullPath, FileMode.Open, FileAccess.Read))
+                {
                     if (fs.CanRead)
                     {
                         int byteValue;
+                        long bytesRead = 0;
+
                         while ((byteValue = fs.ReadByte()) != -1)
                         {
-                            richTextBox1.AppendText($"{byteValue:X2} ");
+
+                            tmpText += $"{byteValue:X2} ";
+                            worker.ReportProgress((int)(bytesRead * 100 / fs.Length));
                         }
                     }
                 }
+                e.Result = tmpText;
             }
+            catch
+            {
+                e.Result = $"Cannot Access File: {tmpNode.FullPath}";
+            }
+        }
+        private void workerProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            /*
+            toolStripProgressBar1.Value = e.ProgressPercentage;
+            toolStripStatusLabel1.Text = $"{e.ProgressPercentage}%";
+            statusStrip1.Update();
+            */
         }
     }
 }
